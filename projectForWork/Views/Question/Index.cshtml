@@ -1,0 +1,294 @@
+﻿@using projectForWork.Models
+@model IEnumerable<questions>
+
+@{
+    ViewBag.Title = "Index";
+    string opt_1 = "Hiç";
+    string opt_2 = "Biraz";
+    string opt_3 = "Kısmen";
+    string opt_4 = "Neredeyse";
+    string opt_5 = "Tamamen";
+    int i = 1;
+}
+<div id="sayac"></div>
+<h2>Mizmer</h2>
+<form action="" method="post">
+
+
+    @*<h4> <b>@(question.question)</b></h4> <br />*@
+    <h4> <b><label id="question-lbl"></label></b></h4> <br />
+
+    <input type="radio" class="option" name="nameRb" value="1" id="answer_1" title="denemeS" />@opt_1<br />
+    <input type="radio" class="option" name="nameRb" value="25" id="answer_2" title="" />@opt_2<br />
+    <input type="radio" class="option" name="nameRb" value="50" id="answer_3" />@opt_3<br />
+    <input type="radio" class="option" name="nameRb" value="75" id="answer_4" />@opt_4<br />
+    <input type="radio" class="option" name="nameRb" value="100" id="answer_4" />@opt_5<br />
+
+
+    <input type="button" id="getNextQuest-btn" value="Diğer Soru" class="btn btn-primary" /><br />
+
+</form>
+
+<div id="loadingBar" class="spinner-grow" style="width: 3rem; height: 3rem; visibility:hidden; " role="status">
+    <span class="sr-only">Loading...</span>
+</div>
+
+<div id="resultPanel" class="modal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><label id="userInfo"></label></h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <h3 id="totalTime"></h3>
+                <button type="button" id="anotherChart-btn" class="btn btn-warning" data-dismiss="modal">Diğer Şekil</button>
+
+                <canvas id="doughnutChart"></canvas>
+                <canvas id="barChart" "></canvas>
+                <div id="infoPanelDiv"></div>
+
+
+            </div>
+            <div class="modal-footer">
+
+                <button type="button" id="closePanel-btn" class="btn btn-secondary" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="text/javascript">
+
+    //Global Tanımlamalar
+    var id = 1;
+    var values = [];
+    var chartDataNames = [];
+    var chartDatas = [];
+    var totalTime = 0;
+
+    //Sayfa yüklenince çalışacak fonksiyonlar
+    $(document).ready(function () {
+        $("resultPanel").show();
+        getNextQ(id);
+        Kronometre.baslat();
+        $("#barChart").hide();
+    });
+
+
+    //Burada bir sonraki soruyu getirecek fonsiyonu çağırmadan önce işaretlenmiş olan Radio'nun değerini de ilgili dizide tutacak
+    $("#getNextQuest-btn").click(function () {
+        if ($(".option").is(":checked")) {
+            var selected = $("input[type='radio'][class='option']:checked").val();
+            $('input:radio[class="option"]').prop('checked', false);
+            values.push(selected);
+            id++;
+            //id ile bir sonraki soru çağırılıyor.
+            if (id != 11) {
+                getNextQ(id);
+            }
+            else {
+                //sorular bittiğinde sonuçların Controller'dan alınacağı fonksiyon çağırılıyor
+                getResult();
+                //Sayaç durdurulup, son anki değeri bir değişkende tutuluyor
+                Kronometre.bitir();
+            }
+
+
+
+        }
+        else { alert("Bir seçim Yapmalısın !"); }
+
+
+    });
+
+    //Sonuç grafiğini gösteren paneli kapatma fonksiyonu
+    $("#closePanel-btn").click(function () {
+        $("#resultPanel").fadeOut(800);
+        location.reload();
+    });
+    // RaharCharts visibility fonsiyonu
+    $("#anotherChart-btn").click(function () {
+     
+        $("#doughnutChart").toggle(500);
+        
+         $("#barChart").toggle(500);
+
+    });
+
+
+    //Bir sonraki soruyu çağırıp ekrana basacak fonksiyon
+    function getNextQ(id) {
+
+
+        $.ajax({
+
+            url: "/Question/getNextQuestion/" + id,
+            method: "GET",
+            success: function (resp) {
+
+                $("#question-lbl").html("");
+                $("#question-lbl").html(id + "-"+resp[0].question);
+
+            }
+        });
+
+    }
+    //Sonuçları Controller'da hesaplattırıp, Grafiğe basmak için hazırlayacak fonksiyon
+    function getResult() {
+
+
+        $.ajax({
+            url: "/Question/getResult",
+            method: "POST",
+            data: { arr: values },
+            dataType: "json",
+            success: function (resp) {
+                $.each(resp, function (key, value) {
+                    //Datalara ait isimler ve değişkenler Grafik Chart'ın yapısına göre, Json olarak gelen veri Array'e dönüştürülüyor
+                    chartDataNames.push(value.variableName);
+
+                    chartDatas.push(value.variableValue);
+
+
+                });
+
+                showResultChart(chartDatas, chartDataNames);
+            }
+        });
+
+    }
+
+    //İlgili sonuçları Grafiğe Yansıtacak fonksiyon ve ekrana basacak
+    function showResultChart(data = [], dataNames = []) {
+        $("#loadingBar").show();
+      
+        $("#loadingBar").hide().delay(3000);
+        //Chart Özellikleri - BootstrapChart
+        var ctxD = document.getElementById("doughnutChart").getContext('2d');
+        var myLineChart = new Chart(ctxD, {
+            type: 'doughnut',
+            data: {
+                labels: dataNames,
+                datasets: [{
+                    data: data,
+                    backgroundColor: ["#F7464A", "#46BFBD", "#FDB45C", "#949FB1", "#4D5360", "#F1FF33", "#0713F8", "#8B05B8 ", "#8D0202", "#0E8D02"],
+                    hoverBackgroundColor: ["#FF5A5E", "#5AD3D1", "#FFC870", "#A8B3C5", "#616774", "#FF5A5E", "#5AD3D1", "#FFC870", "#A8B3C5", "#616774"]
+                }]
+            },
+            options: {
+                responsive: true
+            }
+        });
+
+
+        $("#resultPanel").fadeIn(800);
+        $("#totalTime").text("Sizi Tanıyın...");
+        $("#infoPanelDiv").append("<ul><li>Cevaplama Süreniz :" + totalTime + " </li><li>Soru Sayısı : 10 </li><li>Değişken Sayısı : 10</li></ul>");
+
+        //İkinci Chart
+        var ctxB = document.getElementById("barChart").getContext('2d');
+        var myBarChart = new Chart(ctxB, {
+            type: 'bar',
+            data: {
+                labels:dataNames,
+                datasets: [{
+                    label: '# of Votes',
+                    data: data,
+                    backgroundColor: [
+                        'rgba(255, 99, 132, 0.2)',
+                        'rgba(54, 162, 235, 0.2)',
+                        'rgba(255, 206, 86, 0.2)',
+                        'rgba(75, 192, 192, 0.2)',
+                        'rgba(153, 102, 255, 0.2)',
+                        'rgba(255, 159, 64, 0.2)'
+                        ,
+                        'rgba(255, 162, 99, 0.2)',
+                        'rgba(120, 57, 86, 0.2)',
+                        'rgba(158, 55, 255, 0.2)',
+                        'rgba(10, 50, 100, 0.2)',
+                        'rgba(12, 159, 255, 0.2)'
+                    ],
+                    borderColor: [
+                        'rgba(255,99,132,1)',
+                        'rgba(54, 162, 235, 1)',
+                        'rgba(255, 206, 86, 1)',
+                        'rgba(75, 192, 192, 1)',
+                        'rgba(153, 102, 255, 1)',
+                        'rgba(255, 159, 64, 1)'
+                        ,
+                        'rgba(255, 162, 99, 1)',
+                        'rgba(120, 57, 86, 1)',
+                        'rgba(158, 55, 255, 1)',
+                        'rgba(10, 50, 100, 1)',
+                        'rgba(12, 159, 255, 1)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: {
+                    yAxes: [{
+                        ticks: {
+                            beginAtZero: true
+                        }
+                    }]
+                }
+            }
+        });
+
+    }
+
+
+    //Süre Sayacı - Toplam süreyi global tanımlanmış değişkene atacak ve sonuçta gösteriliyor olacak
+    //Bunu direk hazır kullandım. Daha önce sayaçlarla çalışmamış idim.
+    function Kronometre(Id, Saniye) {
+
+        this.gercekSaniye = Saniye || 0;
+        this.saniye = Saniye || 0;
+        this.interval;
+
+        this.baslat = function () {
+            this.sayacElem = document.getElementById(Id);
+            if (!this.interval) {
+                this.sayac();
+                this.interval = setInterval(this.sayac.bind(this), 1000);
+            }
+        };
+
+        this.sayac = function () {
+
+            var toplamSaniye = this.saniye;
+            var saat = parseInt(toplamSaniye / 3600) % 24;
+            var dakika = parseInt(toplamSaniye / 60) % 60;
+            var saniye = toplamSaniye % 60;
+
+            this.sayacElem.innerHTML = (saat < 10 ? "0" + saat : saat) + ":" + (dakika < 10 ? "0" + dakika : dakika) + ":" + (saniye < 10 ? "0" + saniye : saniye);
+
+            this.saniye += 1;
+
+        };
+
+
+        this.duraklat = function () {
+            totalTime = this.sayacElem.innerHTML;
+            clearInterval(this.interval);
+
+            this.interval = null;
+        };
+        this.bitir = function () {
+            this.duraklat();
+            this.sayacElem.innerHTML = '';
+            this.saniye = this.gercekSaniye;
+
+        };
+
+    }
+
+    var Kronometre = new Kronometre('sayac');
+</script>
+
+
+
